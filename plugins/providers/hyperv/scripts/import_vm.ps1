@@ -1,37 +1,39 @@
 #Requires -Modules VagrantVM, VagrantMessages
 
 param(
-    [parameter (Mandatory=$true)]
+    [parameter (Mandatory = $true)]
     [string] $VMConfigFile,
-    [parameter (Mandatory=$true)]
-    [string] $DestinationPath,
-    [parameter (Mandatory=$true)]
+    [parameter (Mandatory = $true)]
+    [string] $DestinationDirectory,
+    [parameter (Mandatory = $true)]
     [string] $DataPath,
-    [parameter (Mandatory=$true)]
+    [parameter (Mandatory = $true)]
     [string] $SourcePath,
-    [parameter (Mandatory=$false)]
+    [parameter (Mandatory = $false)]
     [switch] $LinkedClone,
-    [parameter (Mandatory=$false)]
-    [string] $VMName=$null
+    [parameter (Mandatory = $false)]
+    [string] $VMName = $null
 )
 
 $ErrorActionPreference = "Stop"
 
 try {
-    if($LinkedClone) {
+    if ($LinkedClone) {
         $linked = $true
-    } else {
+    }
+    else {
         $linked = $false
     }
 
-    $VM = New-VagrantVM -VMConfigFile $VMConfigFile -DestinationPath $DestinationPath `
-      -DataPath $DataPath -SourcePath $SourcePath -LinkedClone $linked -VMName $VMName
+    $VM = New-VagrantVM -VMConfigFile $VMConfigFile -DestinationDirectory $DestinationDirectory `
+        -DataPath $DataPath -LinkedClone $linked -VMName $VMName
 
     $Result = @{
         id = $VM.Id.Guid;
     }
     Write-OutputMessage (ConvertTo-Json $Result)
-} catch {
+}
+catch {
     Write-ErrorMessage "${PSItem}"
     exit 1
 }
