@@ -47,10 +47,13 @@ module VagrantPlugins
           # and use the HyperV module to derive the needed paths from the VMConfig, which is used by the powershell
           # code anyway to find the necessary drives.
           image_path = nil
+          source_disk_files = []
           hd_dir.each_child do |file|
             if VALID_HD_EXTENSIONS.include?(file.extname.downcase)
               image_path = file
-              @logger.info("Found disk for this box: #{image_path}")
+              # source_disk_files.push(Vagrant::Util::Platform.wsl_to_windows_path(file).gsub("/", "\\"))
+              source_disk_files.push(file.to_s)
+              @logger.info("Use original disk from box: #{file.to_s}")
             end
           end
 
@@ -70,6 +73,11 @@ module VagrantPlugins
             "DataPath" => Vagrant::Util::Platform.wsl_to_windows_path(env[:machine].data_dir).gsub("/", "\\"),
             "LinkedClone" => !!env[:machine].provider_config.linked_clone,
             "VMName" => env[:machine].provider_config.vmname,
+            # withstood all attempts to use a standard representation of the array or JSON or similar
+            "SourceDiskFilesString" => source_disk_files.collect {
+              |item|
+              Vagrant::Util::Platform.wsl_to_windows_path(item).gsub("/", "\\")
+            }.join("|"),
           }
 
           env[:ui].detail("Creating and registering the VM...")

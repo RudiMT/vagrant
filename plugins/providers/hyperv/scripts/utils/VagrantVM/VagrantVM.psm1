@@ -14,7 +14,9 @@ function New-VagrantVM {
         [parameter (Mandatory = $false)]
         [bool] $LinkedClone = $false,
         [parameter(Mandatory = $false)]
-        [string] $VMName
+        [string] $VMName,
+        [parameter (Mandatory = $false)]
+        $SourceFileHash = @{}
     )
     if ([IO.Path]::GetExtension($VMConfigFile).ToLower() -eq ".xml") {
         return New-VagrantVMXML @PSBoundParameters
@@ -49,6 +51,9 @@ New Hyper-V VM should be linked clone instead of complete copy.
 .PARAMETER VMName
 Name of the new Hyper-V VM.
 
+.PARAMETER SourceFileHash
+The full paths to the attached disks from the box' download location, indexed by the file name of these disks.
+
 .INPUTS
 
 None.
@@ -68,7 +73,9 @@ function New-VagrantVMVMCX {
         [parameter (Mandatory = $false)]
         [bool] $LinkedClone = $false,
         [parameter(Mandatory = $false)]
-        [string] $VMName
+        [string] $VMName,
+        [parameter (Mandatory = $false)]
+        $SourceFileHash
     )
 
     $NewVMConfig = @{
@@ -81,7 +88,7 @@ function New-VagrantVMVMCX {
 
     # If the config is empty it means the import failed. Attempt to provide
     # context for failure
-    if ($VMConfig -eq $null) {
+    if ($null -eq $VMConfig) {
         Report-ErrorVagrantVMImport -VMConfigFile $VMConfigFile
     }
 
@@ -104,7 +111,7 @@ function New-VagrantVMVMCX {
     # Verify new VM
     $Report = Hyper-V\Compare-VM -CompatibilityReport $VMConfig
     if ($Report.Incompatibilities.Length -gt 0) {
-        throw $(ConvertTo-Json $($Report.Incompatibilities | select -ExpandProperty Message))
+        throw $(ConvertTo-Json $($Report.Incompatibilities | Select-Object -ExpandProperty Message))
     }
 
     if ($LinkedClone) {
@@ -115,20 +122,24 @@ function New-VagrantVMVMCX {
         foreach ($Controller in $Controllers) {
             foreach ($Drive in $Controller.Drives) {
                 $SourcePath = $Drive.pathname."#text"
+                $diskFileName = [System.IO.Path]::GetFileName($SourcePath)
+                $originalSourceFile = $SourceFileHash[$diskFileName.ToLower()]
+                if ($null -eq $originalSourceFile) {
+                    Write-Warning("One of the drives asks for a disk that doesn't exist in original box. Skipping {0}" -f $SourcePath)
+                    Write-Warning($SourceFileHash | ConvertTo-Json)
+                    continue;
+                }
+                $DestinationPath = [System.IO.Path]::Combine($DestinationDirectory, $diskFileName)
 
-                $sourceDiskFileName = [System.IO.Path]::GetFileName($SourcePath)
-                $Path = [System.IO.Path]::Combine($DestinationDirectory, $sourceDiskFileName)
-                # Only create a linked clone for the source disk given,
-                # copy other disks
-                if ([System.IO.Path]::GetFileName($Drive.Path) -eq $sourceDiskFileName) {
+                if ($LinkedClone) {
                     Hyper-V\Remove-VMHardDiskDrive $Drive
-                    Hyper-V\New-VHD -Path $Path -ParentPath $SourcePath -Differencing
-                    Hyper-V\Add-VMHardDiskDrive -VM $VM -Path $Path
+                    Hyper-V\New-VHD -Path $DestinationPath -ParentPath $originalSourceFile -Differencing -ErrorAction Stop
+                    Hyper-V\Add-VMHardDiskDrive -VM $VM -Path $DestinationPath
                 }
                 else {
                     Hyper-V\Remove-VMHardDiskDrive $Drive
-                    Copy-Item $sourceDiskFileName -Destination $Path -ErrorAction Stop
-                    Hyper-V\Add-VMHardDiskDrive -VM $VM -Path $Path
+                    Copy-Item -Path $originalSourceFile -Destination $DestinationPath -ErrorAction Stop
+                    Hyper-V\Add-VMHardDiskDrive -VM $VM -Path $DestinationPath
 
                 }
             }
@@ -161,6 +172,9 @@ New Hyper-V VM should be linked clone instead of complete copy.
 .PARAMETER VMName
 Name of the new Hyper-V VM.
 
+.PARAMETER SourceFileHash
+The full paths to the attached disks from the box' download location, indexed by the file name of these disks.
+
 .INPUTS
 
 None.
@@ -182,7 +196,10 @@ function New-VagrantVMXML {
         [parameter (Mandatory = $false)]
         [bool] $LinkedClone = $false,
         [parameter(Mandatory = $false)]
-        [string] $VMName
+        [string] $VMName,
+        [parameter (Mandatory = $false)]
+        $SourceFileHash
+
     )
 
     New-Item -ItemType Directory -Force -Path $DestinationDirectory
@@ -258,14 +275,18 @@ function New-VagrantVMXML {
             if ($DriveType -ne "VHD") {
                 continue
             }
-
             $SourcePath = $Drive.pathname."#text"
-            $DestinationPath = [System.IO.Path]::Combine($DestinationDirectory, [System.IO.Path]::GetFileName($SourcePath))
+            $diskFileName = [System.IO.Path]::GetFileName($SourcePath)
+            $originalSourceFile = $SourceFileHash[$diskFileName.ToLower()]
+            if ($null -eq $originalSourceFile) {
+                Write-Warning("One of the drives asks for a disk that doesn't exist in original box. Skipping {0}" -f $diskFileName)
+            }
+            $DestinationPath = [System.IO.Path]::Combine($DestinationDirectory, $diskFileName)
             if ($LinkedClone) {
-                Hyper-V\New-VHD -Path $DestinationPath -ParentPath $SourcePath -ErrorAction Stop
+                Hyper-V\New-VHD -Path $DestinationPath -ParentPath $originalSourceFile -ErrorAction Stop
             }
             else {
-                Copy-Item -Path $SourcePath -Destination $DestinationPath -ErrorAction Stop
+                Copy-Item -Path $originalSourceFile -Destination $DestinationPath -ErrorAction Stop
             }
 
 
@@ -279,7 +300,6 @@ function New-VagrantVMXML {
             if ($Drive.pool_id."#text") {
                 $NewDriveConfig.ResourcePoolname = $Drive.pool_id."#text"
             }
-            $NewDriveConfig | ConvertTo-Json
             $VM | Hyper-V\Add-VMHardDiskDrive @NewDriveConfig
         }
     }
