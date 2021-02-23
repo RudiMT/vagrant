@@ -73,7 +73,7 @@ module VagrantPlugins
             "DataPath" => Vagrant::Util::Platform.wsl_to_windows_path(env[:machine].data_dir).gsub("/", "\\"),
             "LinkedClone" => !!env[:machine].provider_config.linked_clone,
             "VMName" => env[:machine].provider_config.vmname,
-            # withstood all attempts to use a standard representation of the array or JSON or similar
+            # Catenate the values using a "|" character, withstood all attempts to use a standard representation of the array or JSON or similar
             "SourceDiskFilesString" => source_disk_files.collect {
               |item|
               Vagrant::Util::Platform.wsl_to_windows_path(item).gsub("/", "\\")

@@ -131,12 +131,12 @@ function New-VagrantVMVMCX {
                 }
                 $DestinationPath = [System.IO.Path]::Combine($DestinationDirectory, $diskFileName)
 
+                # The logic around the foreach only applies for linked clones, but this seems the correct logic for all cases
                 if ($LinkedClone) {
                     Hyper-V\Remove-VMHardDiskDrive $Drive
                     Hyper-V\New-VHD -Path $DestinationPath -ParentPath $originalSourceFile -Differencing -ErrorAction Stop
                     Hyper-V\Add-VMHardDiskDrive -VM $VM -Path $DestinationPath
-                }
-                else {
+                } else {
                     Hyper-V\Remove-VMHardDiskDrive $Drive
                     Copy-Item -Path $originalSourceFile -Destination $DestinationPath -ErrorAction Stop
                     Hyper-V\Add-VMHardDiskDrive -VM $VM -Path $DestinationPath
@@ -144,7 +144,6 @@ function New-VagrantVMVMCX {
                 }
             }
         }
-
     }
     return Hyper-V\Import-VM -CompatibilityReport $VMConfig
     <#
@@ -214,14 +213,13 @@ function New-VagrantVMXML {
     # Determine boot device
     if ($Gen -eq 1) {
         Switch ((Select-Xml -Xml $VMConfig -XPath "//boot").node.device0."#text") {
-            "Floppy" { $BootDevice = "Floppy" }
+            "Floppy"    { $BootDevice = "Floppy" }
             "HardDrive" { $BootDevice = "IDE" }
             "Optical" { $BootDevice = "CD" }
             "Network" { $BootDevice = "LegacyNetworkAdapter" }
             "Default" { $BootDevice = "IDE" }
         }
-    }
-    else {
+    } else {
         Switch ((Select-Xml -Xml $VMConfig -XPath "//boot").node.device0."#text") {
             "HardDrive" { $BootDevice = "VHD" }
             "Optical" { $BootDevice = "CD" }
@@ -251,8 +249,7 @@ function New-VagrantVMXML {
     if ($Gen -gt 1) {
         if ($SecureBoot -eq "True") {
             Hyper-V\Set-VMFirmware -VM $VM -EnableSecureBoot On
-        }
-        else {
+        } else {
             Hyper-V\Set-VMFirmware -VM $VM -EnableSecureBoot Off
         }
     }
@@ -284,8 +281,7 @@ function New-VagrantVMXML {
             $DestinationPath = [System.IO.Path]::Combine($DestinationDirectory, $diskFileName)
             if ($LinkedClone) {
                 Hyper-V\New-VHD -Path $DestinationPath -ParentPath $originalSourceFile -ErrorAction Stop
-            }
-            else {
+            } else {
                 Copy-Item -Path $originalSourceFile -Destination $DestinationPath -ErrorAction Stop
             }
 
@@ -294,8 +290,8 @@ function New-VagrantVMXML {
 
             $NewDriveConfig = @{
                 ControllerNumber = $DriveNumberMatcher.Match($Controller.node.name).value;
-                Path             = $DestinationPath
-                ControllerType   = $ControllerType;
+                Path = $DestinationPath
+                ControllerType = $ControllerType;
             }
             if ($Drive.pool_id."#text") {
                 $NewDriveConfig.ResourcePoolname = $Drive.pool_id."#text"
@@ -311,8 +307,7 @@ function New-VagrantVMXML {
     $memory = (Select-Xml -Xml $VMConfig -XPath "//memory").node.Bank
     if ($memory.dynamic_memory_enabled."#text" -eq "True") {
         $dynamicmemory = $True
-    }
-    else {
+    } else {
         $dynamicmemory = $False
     }
     # Memory values need to be in bytes
@@ -392,12 +387,11 @@ function Report-ErrorVagrantVMImport {
     $Result = $ManagementService.ImportSystemDefinition($FullPathFile, $null, $true)
     if ($Result.ReturnValue -eq 0) {
         throw "Unknown error encountered while importing VM"
-    }
-    elseif ($Result.ReturnValue -eq 4096) {
-        $job = Get-WmiObject -Namespace 'root\virtualization\v2' -Query 'select * from Msvm_ConcreteJob' | where { $_.__PATH -eq $Result.Job }
+    } elseif ($Result.ReturnValue -eq 4096) {
+        $job = Get-WmiObject -Namespace 'root\virtualization\v2' -Query 'select * from Msvm_ConcreteJob' | Where-Object { $_.__PATH -eq $Result.Job }
         while ($job.JobState -eq 3 -or $job.JobState -eq 4) {
             Start-Sleep 1
-            $job = Get-WmiObject -Namespace 'root\virtualization\v2' -Query 'select * from Msvm_ConcreteJob' | where { $_.__PATH -eq $Result.Job }
+            $job = Get-WmiObject -Namespace 'root\virtualization\v2' -Query 'select * from Msvm_ConcreteJob' | Where-Object { $_.__PATH -eq $Result.Job }
         }
         $ErrorMsg = $job.ErrorDescription + "`n`n"
         $ErrorMsg = $ErrorMsg + "Error Code: " + $job.ErrorCode + "`n"
@@ -487,8 +481,7 @@ function Set-VagrantVMMemory {
         Hyper-V\Set-VM -VM $VM -DynamicMemory
         Hyper-V\Set-VM -VM $VM -MemoryMinimumBytes $MemoryMinimumBytes -MemoryMaximumBytes `
             $MemoryMaximumBytes -MemoryStartupBytes $MemoryStartupBytes
-    }
-    else {
+    } else {
         Hyper-V\Set-VM -VM $VM -StaticMemory
         Hyper-V\Set-VM -VM $VM -MemoryStartupBytes $MemoryStartupBytes
     }
@@ -650,10 +643,9 @@ function Set-VagrantVMService {
     )
 
     if ($Enable) {
-        Hyper-V\Get-VMIntegrationService -VM $VM | ? { $_.Id -match $Id } | Hyper-V\Enable-VMIntegrationService
-    }
-    else {
-        Hyper-V\Get-VMIntegrationService -VM $VM | ? { $_.Id -match $Id } | Hyper-V\Disable-VMIntegrationService
+        Hyper-V\Get-VMIntegrationService -VM $VM | Where-Object { $_.Id -match $Id } | Hyper-V\Enable-VMIntegrationService
+    } else {
+        Hyper-V\Get-VMIntegrationService -VM $VM | Where-Object { $_.Id -match $Id } | Hyper-V\Disable-VMIntegrationService
     }
     return $VM
     <#
