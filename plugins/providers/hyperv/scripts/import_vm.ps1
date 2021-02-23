@@ -22,8 +22,7 @@ $ErrorActionPreference = "Stop"
 try {
     if ($LinkedClone) {
         $linked = $true
-    }
-    else {
+    } else {
         $linked = $false
     }
     $SourceFileHash = @{}
@@ -37,8 +36,7 @@ try {
         id = $VM.Id.Guid;
     }
     Write-OutputMessage (ConvertTo-Json $Result)
-}
-catch {
+} catch {
     Write-ErrorMessage "${PSItem}"
     exit 1
 }
