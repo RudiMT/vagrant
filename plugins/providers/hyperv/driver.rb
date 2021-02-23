@@ -305,13 +305,19 @@ module VagrantPlugins
         path = Vagrant::Util::Platform.wsl_to_windows_path(lib_path.join(path)).to_s.gsub("/", "\\")
         options = options || {}
         ps_options = []
+
         options.each do |key, value|
-          next if !value || value.to_s.empty?
-          next if value == false
-          ps_options << "-#{key}"
-          # If the value is a TrueClass assume switch
-          next if value == true
-          ps_options << "'#{value}'"
+          # If the value is a TrueClass assume switch.
+          # This breaks boolean powershell parameters, but there aren't any
+          # The syntax is -switch:value. Simply omitting the parameter doesn't give the intended result.
+          if value == true
+            ps_options << "-#{key}:$true"
+          elsif value == false
+            ps_options << "-#{key}:$false"
+          else
+            ps_options << "-#{key}"
+            ps_options << "'#{value}'"
+          end
         end
 
         # Always have a stop error action for failures

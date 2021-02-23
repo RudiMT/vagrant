@@ -101,7 +101,7 @@ function New-VagrantVMVMCX {
 
     # Set EFI secure boot on machines after Gen 1
     if ($Gen -gt 1) {
-        Hyper-V\Set-VMFirmware -VM $VM -EnableSecureBoot (Hyper-V\Get-VMFirmware -VM $VM)SecureBoot
+        Hyper-V\Set-VMFirmware -VM $VM -EnableSecureBoot (Hyper-V\Get-VMFirmware -VM $VM).SecureBoot
     }
 
     # Disconnect adapters from switches
@@ -110,10 +110,10 @@ function New-VagrantVMVMCX {
     # Verify new VM
     $Report = Hyper-V\Compare-VM -CompatibilityReport $VMConfig
     if ($Report.Incompatibilities.Length -gt 0) {
-        throw $(ConvertTo-Json $($Report.Incompatibilities Select-Object -ExpandProperty Message))
+        throw $(ConvertTo-Json $($Report.Incompatibilities | Select-Object -ExpandProperty Message))
     }
 
-    if ($LinkedClone) {
+    if($LinkedClone) {
         $Controllers = Hyper-V\Get-VMScsiController -VM $VM
         if ($Gen -eq 1) {
             $Controllers = @($Controllers) + @(Hyper-V\Get-VMIdeController -VM $VM)
@@ -124,12 +124,13 @@ function New-VagrantVMVMCX {
                 $diskFileName = [System.IO.Path]::GetFileName($SourcePath)
                 $originalSourceFile = $SourceFileHash[$diskFileName.ToLower()]
                 if ($null -eq $originalSourceFile) {
-                    Write-Warning("One of the drives asks for a disk that doesn't exist in original box. Skipping {0}" $SourcePath)
-                    Write-Warning($SourceFileHash ConvertTo-Json)
+                    Write-Warning("One of the drives asks for a disk that doesn't exist in original box. Skipping {0}" -f $SourcePath)
+                    Write-Warning($SourceFileHash | ConvertTo-Json)
                     continue;
                 }
                 $DestinationPath = [System.IO.Path]::Combine($DestinationDirectory, $diskFileName)
 
+                # The logic around the foreach only applies for linked clones, but this seems the correct logic for all cases
                 if ($LinkedClone) {
                     Hyper-V\Remove-VMHardDiskDrive $Drive
                     Hyper-V\New-VHD -Path $DestinationPath -ParentPath $originalSourceFile -Differencing -ErrorAction Stop
@@ -142,7 +143,6 @@ function New-VagrantVMVMCX {
                 }
             }
         }
-
     }
     return Hyper-V\Import-VM -CompatibilityReport $VMConfig
     <#
@@ -274,7 +274,7 @@ function New-VagrantVMXML {
             $diskFileName = [System.IO.Path]::GetFileName($SourcePath)
             $originalSourceFile = $SourceFileHash[$diskFileName.ToLower()]
             if ($null -eq $originalSourceFile) {
-                Write-Warning("One of the drives asks for a disk that doesn't exist in original box. Skipping {0}" $diskFileName)
+                Write-Warning("One of the drives asks for a disk that doesn't exist in original box. Skipping {0}" -f $diskFileName)
             }
             $DestinationPath = [System.IO.Path]::Combine($DestinationDirectory, $diskFileName)
             if ($LinkedClone) {

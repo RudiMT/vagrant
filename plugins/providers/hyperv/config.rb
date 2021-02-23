@@ -7,14 +7,14 @@ module VagrantPlugins
       ALLOWED_AUTO_START_ACTIONS = [
         "Nothing".freeze,
         "StartIfRunning".freeze,
-        "Start".freeze
+        "Start".freeze,
       ].freeze
 
       # Allowed automatic stop actions for VM
       ALLOWED_AUTO_STOP_ACTIONS = [
         "ShutDown".freeze,
         "TurnOff".freeze,
-        "Save".freeze
+        "Save".freeze,
       ].freeze
 
       # @return [Integer] Seconds to wait for an IP address when booting
@@ -102,9 +102,14 @@ module VagrantPlugins
         else
           @enable_checkpoints = !!@enable_checkpoints
         end
-
-        # If automatic checkpoints are enabled, checkpoints will automatically be enabled
-        @enable_checkpoints ||= @enable_automatic_checkpoints
+        # The check in configure_vm.ps1 does throw an error in this constellation anyway, and the Vagrantfile must enable both flags
+        if @enable_automatic_checkpoints
+          if @enable_checkpoints == false
+            errors << I18n.t("If automatic checkpoints are enabled, checkpoints must be set to enabled as well")
+          end
+          # If automatic checkpoints are enabled, checkpoints will automatically be enabled
+          # @enable_checkpoints ||= @enable_automatic_checkpoints
+        end
 
         @enable_enhanced_session_mode = false if @enable_enhanced_session_mode == UNSET_VALUE
       end
@@ -118,27 +123,27 @@ module VagrantPlugins
 
         if !vm_integration_services.is_a?(Hash)
           errors << I18n.t("vagrant_hyperv.config.invalid_integration_services_type",
-            received: vm_integration_services.class)
+                           received: vm_integration_services.class)
         else
           vm_integration_services.each do |key, value|
             if ![true, false].include?(value)
               errors << I18n.t("vagrant_hyperv.config.invalid_integration_services_entry",
-                entry_name: name, entry_value: value)
+                               entry_name: name, entry_value: value)
             end
           end
         end
 
         if !ALLOWED_AUTO_START_ACTIONS.include?(auto_start_action)
           errors << I18n.t("vagrant_hyperv.config.invalid_auto_start_action", action: auto_start_action,
-            allowed_actions: ALLOWED_AUTO_START_ACTIONS.join(", "))
+                                                                              allowed_actions: ALLOWED_AUTO_START_ACTIONS.join(", "))
         end
 
         if !ALLOWED_AUTO_STOP_ACTIONS.include?(auto_stop_action)
           errors << I18n.t("vagrant_hyperv.config.invalid_auto_stop_action", action: auto_stop_action,
-            allowed_actions: ALLOWED_AUTO_STOP_ACTIONS.join(", "))
+                                                                             allowed_actions: ALLOWED_AUTO_STOP_ACTIONS.join(", "))
         end
 
-        {"Hyper-V" => errors}
+        { "Hyper-V" => errors }
       end
     end
   end
