@@ -17,8 +17,14 @@ try {
 }
 
 try {
-    Hyper-V\Set-VM -VM $VM -EnhancedSessionTransportType $Type
+    # HyperV 1.1 (Windows Server 2012R2) crashes on this call.
+    $present = Get-Command Set-VM -ParameterName EnhancedSessionTransportType -ErrorAction SilentlyContinue
+    if($present) {
+        Hyper-V\Set-VM -VM $VM -EnhancedSessionTransportType $Type
+    }else{
+        Write-Output("This version of HyperV does not support EnhancedSessionTransportType, ignoring.")
+    }
 } catch {
-    Write-ErrorMessage "Failed to assign EnhancedSessionTransportType to ${Type}: ${PSItem}"
+    Write-ErrorMessage "Failed to assign EnhancedSessionTransportType to ${Type}:${PSItem}"
     exit 1
 }
