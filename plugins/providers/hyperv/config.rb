@@ -102,9 +102,14 @@ module VagrantPlugins
         else
           @enable_checkpoints = !!@enable_checkpoints
         end
-
-        # If automatic checkpoints are enabled, checkpoints will automatically be enabled
-        @enable_checkpoints ||= @enable_automatic_checkpoints
+        # The check in configure_vm.ps1 does throw an error in this constellation anyway, and the Vagrantfile must enable both flags
+        if @enable_automatic_checkpoints
+          if @enable_checkpoints == false
+            errors << I18n.t("If automatic checkpoints are enabled, checkpoints must be set to enabled as well")
+          end
+          # If automatic checkpoints are enabled, checkpoints will automatically be enabled
+          # @enable_checkpoints ||= @enable_automatic_checkpoints
+        end
 
         @enable_enhanced_session_mode = false if @enable_enhanced_session_mode == UNSET_VALUE
       end
