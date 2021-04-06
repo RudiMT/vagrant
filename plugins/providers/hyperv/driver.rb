@@ -7,7 +7,7 @@ require_relative "plugin"
 module VagrantPlugins
   module HyperV
     class Driver
-      ERROR_REGEXP  = /===Begin-Error===(.+?)===End-Error===/m
+      ERROR_REGEXP = /===Begin-Error===(.+?)===End-Error===/m
       OUTPUT_REGEXP = /===Begin-Output===(.+?)===End-Output===/m
 
       # Name mapping for integration services for id
@@ -41,7 +41,7 @@ module VagrantPlugins
       # @return [Object, nil] If the command returned JSON content
       #                       it will be parsed and returned, otherwise
       #                       nil will be returned
-      def execute(path, options={})
+      def execute(path, options = {})
         if path.is_a?(Symbol)
           path = "#{path}.ps1"
         end
@@ -51,7 +51,7 @@ module VagrantPlugins
         r.stdout.gsub!("\r\n", "\n")
         r.stderr.gsub!("\r\n", "\n")
 
-        error_match  = ERROR_REGEXP.match(r.stdout)
+        error_match = ERROR_REGEXP.match(r.stdout)
         output_match = OUTPUT_REGEXP.match(r.stdout)
 
         if error_match
@@ -121,7 +121,7 @@ module VagrantPlugins
       #
       # @return [nil]
       def start
-        execute(:start_vm, VmId: vm_id )
+        execute(:start_vm, VmId: vm_id)
       end
 
       # Stop the VM
@@ -175,7 +175,7 @@ module VagrantPlugins
       # @param [String] snapshot_name Name of snapshot to restore
       # @return [nil]
       def restore_snapshot(snapshot_name)
-        execute(:restore_snapshot, VmId: vm_id,  SnapName: snapshot_name)
+        execute(:restore_snapshot, VmId: vm_id, SnapName: snapshot_name)
       end
 
       # Get list of current snapshots
@@ -183,7 +183,7 @@ module VagrantPlugins
       # @return [Array<String>] snapshot names
       def list_snapshots
         snaps = execute(:list_snapshots, VmID: vm_id)
-        snaps.map { |s| s['Name'] }
+        snaps.map { |s| s["Name"] }
       end
 
       # Delete snapshot with the given name
@@ -204,7 +204,7 @@ module VagrantPlugins
       #       to configurable even if Vagrant is not aware of them.
       def set_vm_integration_services(config)
         config.each_pair do |srv_name, srv_enable|
-          args = {VMID: vm_id, Id: INTEGRATION_SERVICES_MAP.fetch(srv_name.to_sym, srv_name).to_s}
+          args = { VMID: vm_id, Id: INTEGRATION_SERVICES_MAP.fetch(srv_name.to_sym, srv_name).to_s }
           args[:Enable] = true if srv_enable
           execute(:set_vm_integration_services, args)
         end
@@ -229,9 +229,9 @@ module VagrantPlugins
       # @option opts [String] :ControllerType
       # @option opts [String] :ControllerNumber
       # @option opts [String] :ControllerLocation
-      def attach_disk(disk_file_path,  **opts)
+      def attach_disk(disk_file_path, **opts)
         execute(:attach_disk_drive, VmId: @vm_id, Path: disk_file_path, ControllerType: opts[:ControllerType],
-                ControllerNumber: opts[:ControllerNumber], ControllerLocation: opts[:ControllerLocation])
+                                    ControllerNumber: opts[:ControllerNumber], ControllerLocation: opts[:ControllerLocation])
       end
 
       # @param [String] path
@@ -246,10 +246,10 @@ module VagrantPlugins
       # @option opts [String] :ParentPath
       def create_disk(path, size_bytes, **opts)
         execute(:new_vhd, Path: path, SizeBytes: size_bytes, Fixed: opts[:Fixed],
-               BlockSizeBytes: opts[:BlockSizeBytes], LogicalSectorSizeBytes: opts[:LogicalSectorSizeBytes],
-               PhysicalSectorSizeBytes: opts[:PhysicalSectorSizeBytes],
-               SourceDisk: opts[:SourceDisk], Differencing: opts[:Differencing],
-               ParentPath: opts[:ParentPath])
+                          BlockSizeBytes: opts[:BlockSizeBytes], LogicalSectorSizeBytes: opts[:LogicalSectorSizeBytes],
+                          PhysicalSectorSizeBytes: opts[:PhysicalSectorSizeBytes],
+                          SourceDisk: opts[:SourceDisk], Differencing: opts[:Differencing],
+                          ParentPath: opts[:ParentPath])
       end
 
       # @param [String] disk_file_path
@@ -277,8 +277,8 @@ module VagrantPlugins
       # @option opts [String] :ControllerLocation
       def remove_disk(controller_type, controller_number, controller_location, disk_file_path, **opts)
         execute(:remove_disk_drive, VmId: @vm_id, ControllerType: controller_type,
-                ControllerNumber: controller_number, ControllerLocation: controller_location,
-                DiskFilePath: disk_file_path)
+                                    ControllerNumber: controller_number, ControllerLocation: controller_location,
+                                    DiskFilePath: disk_file_path)
       end
 
       # @param [String] path
@@ -286,7 +286,7 @@ module VagrantPlugins
       # @param [Hash] opts
       def resize_disk(disk_file_path, size_bytes, **opts)
         execute(:resize_disk_drive, VmId: @vm_id, DiskFilePath: disk_file_path,
-                DiskSize: size_bytes)
+                                    DiskSize: size_bytes)
       end
 
       # Set enhanced session transport type of the VM
@@ -306,12 +306,17 @@ module VagrantPlugins
         options = options || {}
         ps_options = []
         options.each do |key, value|
-          next if !value || value.to_s.empty?
-          next if value == false
-          ps_options << "-#{key}"
-          # If the value is a TrueClass assume switch
-          next if value == true
-          ps_options << "'#{value}'"
+          # If the value is a TrueClass assume switch.
+          # This breaks boolean powershell parameters, but there aren't any
+          # The syntax is -switch:value. When no value is given, the switch is effectively thrown away.
+          if value == true
+            ps_options << "-#{key}:$true"
+          elsif value == false
+            ps_options << "-#{key}:$false"
+          else
+            ps_options << "-#{key}"
+            ps_options << "'#{value}'"
+          end
         end
 
         # Always have a stop error action for failures
@@ -320,7 +325,7 @@ module VagrantPlugins
         # Include our module path so we can nicely load helper modules
         opts = {
           notify: [:stdout, :stderr, :stdin],
-          module_path: mod_path
+          module_path: mod_path,
         }
 
         Vagrant::Util::PowerShell.execute(path, *ps_options, **opts, &block)
